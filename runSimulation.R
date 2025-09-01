@@ -161,7 +161,7 @@ calc_pangenome_fluidity <- function(pa_mat) {
 # s - selection coefficient
 # sig2 - variance of the Ornstein-Uhlenbeck trait
 
-# -------- Example --------
+# -------- Examples --------
 setwd("~/Desktop/simulate_pangenome")
 
 ntips <- 100
@@ -192,7 +192,7 @@ params_closed <- list(
   Ne = 1e9,
   gens_per_unit = 100,
   base_gain = -4,
-  base_loss = -3,
+  base_loss = -4,
   s = 0.01,
   root_prob = 0.5,
   sig2 = 0.1

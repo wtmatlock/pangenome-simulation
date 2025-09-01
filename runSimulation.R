@@ -23,7 +23,7 @@ library(tidyverse)
 set.seed(123)
 
 # -------- WF branch propagation --------
-propagate_branch_wf <- function(p0, bl, q01_eff, q10_eff, s, Ne, gens_per_unit) {
+propagate_branch <- function(p0, bl, q01_eff, q10_eff, s, Ne, gens_per_unit) {
   p <- min(max(as.numeric(p0), 0), 1)
   G <- max(1, round(bl * gens_per_unit))
   for (g in seq_len(G)) {
@@ -48,7 +48,7 @@ propagate_branch_wf <- function(p0, bl, q01_eff, q10_eff, s, Ne, gens_per_unit) 
 }
 
 # -------- Simulate one gene --------
-simulate_gene_wf <- function(tree, params) {
+simulate_gene <- function(tree, params) {
   q01_inst <- exp(params$base_gain)
   q10_inst <- exp(params$base_loss)
   ntips_local <- length(tree$tip.label)
@@ -71,7 +71,7 @@ simulate_gene_wf <- function(tree, params) {
         q01_eff <- pmin(pmax(q01_eff, 0), 1); q10_eff <- pmin(pmax(q10_eff, 0), 1)
         p_parent <- if (parent_state == 1) 1 else 0
         s <- if (!is.null(params$s)) params$s else 0
-        p_child <- propagate_branch_wf(
+        p_child <- propagate_branch(
           p_parent, bl, q01_eff, q10_eff, s, params$Ne, params$gens_per_unit
         )
         child_state <- rbinom(1, 1, p_child)
@@ -85,12 +85,12 @@ simulate_gene_wf <- function(tree, params) {
 }
 
 # -------- Run scenario --------
-run_emergent <- function(params) {
+run_simulation <- function(params) {
   pa_mat <- matrix(0, nrow = length(params$tree$tip.label), ncol = params$G,
                    dimnames = list(params$tree$tip.label, paste0("gene", 1:params$G)))
   
   for (g in seq_len(params$G)) {
-    res <- simulate_gene_wf(params$tree, params)
+    res <- simulate_gene(params$tree, params)
     pa_mat[, g] <- res$states
   }
   
@@ -141,7 +141,7 @@ calc_pangenome_fluidity <- function(pa_mat) {
     Ul <- sum(x == 0 & y == 1)
     (Uk + Ul) / (Mk + Ml)
   }
-
+  
   pair_combos <- combn(rownames(pa_mat), 2, simplify = FALSE)
   
   pair_vals <- sapply(pair_combos, function(p) {
@@ -181,7 +181,7 @@ params_open <- list(
   sig2 = 0.1
 )
 
-sim_open <- run_emergent(params_open)
+sim_open <- run_simulation(params_open)
 open_fluidity <- calc_pangenome_fluidity(sim_open$pa)
 
 # -------- Closed pangenome --------
@@ -198,5 +198,5 @@ params_closed <- list(
   sig2 = 0.1
 )
 
-sim_closed <- run_emergent(params_closed)
+sim_closed <- run_simulation(params_closed)
 closed_fluidity <- calc_pangenome_fluidity(sim_closed$pa)

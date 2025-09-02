@@ -9,9 +9,9 @@
 # - Rates of base_gain and base_loss are on the log scale; q = exp(base_*) gives
 # instantaneous per-unit-time rates which are converted to per-generation probs.
 #
-# - Branch heterogeneity is an Ornstein-Uhlenbeck trait (sig2, alpha=1, theta=0)
-# simulated on the tree and modulates rates multiplicatively:
-#   q01_eff = q01_inst * exp(trait); q10_eff = q10_inst * exp(-trait).
+# - Branch heterogeneity is simulated by determining a per-gene base fitness at 
+# the root (s_root), then each lineage modulates that fitness via an 
+# Ornstein-Uhlenbeck trait (sig2, alpha=1, theta=0).
 #
 # - Root seeding where each gene has root_prob chance of being present at the root.
 # -----------------------------------------------------------------------------
@@ -27,9 +27,9 @@ propagate_branch <- function(p0, bl, q01_eff, q10_eff, s, Ne, gens_per_unit) {
   p <- min(max(as.numeric(p0), 0), 1)
   G <- max(1, round(bl * gens_per_unit))
   for (g in seq_len(G)) {
-    if (p == 0) { 
+    if (p == 0) {
       p_sel <- 0
-    } else if (p == 1) { 
+    } else if (p == 1) {
       p_sel <- 1
     } else {
       w1 <- 1 + s; w0 <- 1
@@ -37,7 +37,7 @@ propagate_branch <- function(p0, bl, q01_eff, q10_eff, s, Ne, gens_per_unit) {
     }
     p_mut <- p_sel * (1 - q10_eff) + (1 - p_sel) * q01_eff
     p_mut <- min(max(p_mut, 0), 1)
-    if (is.infinite(Ne) || Ne <= 0) { 
+    if (is.infinite(Ne) || Ne <= 0) {
       p <- p_mut
     } else {
       k <- rbinom(1, Ne, p_mut); p <- k / Ne
@@ -53,7 +53,9 @@ simulate_gene <- function(tree, params) {
   q10_inst <- exp(params$base_loss)
   ntips_local <- length(tree$tip.label)
   states <- setNames(rep(NA, ntips_local), tree$tip.label)
-  ou <- fastBM(tree, a = 0, sig2 = params$sig2, alpha = 1, theta = 0, internal = TRUE)
+  
+  ou_s <- fastBM(tree, a = 0, sig2 = params$s_sig2, alpha = 1, theta = 0, internal = TRUE)
+  
   root_p <- if (!is.null(params$root_prob)) params$root_prob else 0.5
   state_root <- rbinom(1, 1, root_p)
   
@@ -65,14 +67,19 @@ simulate_gene <- function(tree, params) {
       for (child in children) {
         bl <- tree$edge.length[which(tree$edge[,2] == child)]
         node_name <- if (child <= ntips_local) tree$tip.label[child] else as.character(child)
-        trait <- ou[node_name]; trait <- pmin(pmax(trait, -5), 5)
-        q01_eff <- 1 - exp(-q01_inst * exp(trait) / params$gens_per_unit)
-        q10_eff <- 1 - exp(-q10_inst * exp(-trait) / params$gens_per_unit)
+        
+        trait_s <- ou_s[node_name]
+        s_eff <- params$s_root + trait_s
+        s_eff <- pmin(pmax(s_eff, -0.99), 10)
+        
+        q01_eff <- 1 - exp(-q01_inst / params$gens_per_unit)
+        q10_eff <- 1 - exp(-q10_inst / params$gens_per_unit)
         q01_eff <- pmin(pmax(q01_eff, 0), 1); q10_eff <- pmin(pmax(q10_eff, 0), 1)
+        
         p_parent <- if (parent_state == 1) 1 else 0
-        s <- if (!is.null(params$s)) params$s else 0
+        
         p_child <- propagate_branch(
-          p_parent, bl, q01_eff, q10_eff, s, params$Ne, params$gens_per_unit
+          p_parent, bl, q01_eff, q10_eff, s_eff, params$Ne, params$gens_per_unit
         )
         child_state <- rbinom(1, 1, p_child)
         traverse(child, child_state)
@@ -90,7 +97,16 @@ run_simulation <- function(params) {
                    dimnames = list(params$tree$tip.label, paste0("gene", 1:params$G)))
   
   for (g in seq_len(params$G)) {
-    res <- simulate_gene(params$tree, params)
+    params_gene <- params
+    if (!is.null(params$s)) {
+      params_gene$s_root <- params$s
+    } else {
+      s_mean <- if (!is.null(params$s_root_mean)) params$s_root_mean else 0
+      s_sd   <- if (!is.null(params$s_root_sd)) params$s_root_sd else 0.01
+      params_gene$s_root <- rnorm(1, mean = s_mean, sd = s_sd)
+    }
+    
+    res <- simulate_gene(params$tree, params_gene)
     pa_mat[, g] <- res$states
   }
   
@@ -130,10 +146,10 @@ run_simulation <- function(params) {
 }
 
 # -------- Pangenome fluidity --------
-# Thanks Anna Dewar for the function :-)
+
+# Thanks to Anna Dewar for the function :-)
 
 calc_pangenome_fluidity <- function(pa_mat) {
-  
   fluidity_pair_eq <- function(x, y) {
     x <- as.integer(x); y <- as.integer(y)
     Mk <- sum(x); Ml <- sum(y)
@@ -151,15 +167,16 @@ calc_pangenome_fluidity <- function(pa_mat) {
   (2 / (nrow(pa_mat) * (nrow(pa_mat) - 1))) * sum(pair_vals)
 }
 
-# -------- Params --------
+# -------- Params explanation --------
 # G - number of genes to simulate
 # root_prob - probability gene is present at root
 # gens_per_unit - generations per unit branch length
 # Ne - effective population size
-# base_gain - log-rate of gene gain per branch
-# base_loss - log-rate of gene loss per branch
-# s - selection coefficient
-# sig2 - variance of the Ornstein-Uhlenbeck trait
+# base_gain - log-rate of gene gain per branch (instantaneous)
+# base_loss - log-rate of gene loss per branch (instantaneous)
+# s_root_mean / s_root_sd - per-gene base fitness (sampled per gene)
+# s_sig2 - OU variance for the trait that modulates s along the tree
+# (legacy) s - keep the same selection for all genes/branches
 
 # -------- Examples --------
 setwd("~/Desktop/pangenome-simulation")
@@ -167,35 +184,37 @@ setwd("~/Desktop/pangenome-simulation")
 ntips <- 100
 tree <- rcoal(ntips)
 
-# -------- Open pangenome --------
+# -------- Open pangenome example --------
 params_open <- list(
   tag = "Open",
   tree = tree,
   G = 500,
   Ne = 1e9,
-  gens_per_unit = 100,
+  gens_per_unit = 20,
   base_gain = -2,
   base_loss = -2,
-  s = 0.01,
-  root_prob = 0.5,
-  sig2 = 0.1
+  s_root_mean = 0,
+  s_root_sd   = 0.005,
+  s_sig2 = 0.01,
+  root_prob = 0.5
 )
 
 sim_open <- run_simulation(params_open)
 open_fluidity <- calc_pangenome_fluidity(sim_open$pa)
 
-# -------- Closed pangenome --------
+# -------- Closed pangenome example --------
 params_closed <- list(
   tag = "Closed",
   tree = tree,
   G = 500,
   Ne = 1e9,
-  gens_per_unit = 100,
+  gens_per_unit = 20,
   base_gain = -4,
   base_loss = -4,
-  s = 0.01,
-  root_prob = 0.5,
-  sig2 = 0.1
+  s_root_mean = 0,
+  s_root_sd   = 0.005,
+  s_sig2 = 0.01,
+  root_prob = 0.5
 )
 
 sim_closed <- run_simulation(params_closed)

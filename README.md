@@ -4,5 +4,5 @@ This script simulates gene presence/absence patterns across a phylogeny using a 
 
 The output includes a gene presence/absence matrix, a histogram of gene prevalence, and a phylogeny-ordered heatmap. A function is also provided to calculate pangenome fluidity. Example runs demonstrate “open” and “closed” pangenomes.
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgithub.com%2Fwtmatlock%2Fpangenome-simulation%2F/main?urlpath=%2Fdoc%2Ftree%2FrunSimulation.R)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgithub.com%2Fwtmatlock%2Fpangenome-simulation%2F/main?urlpath=%2Fdoc%2Ftree%2FrunSimulation.R?urlpath=rstudio)
 

@@ -16,9 +16,9 @@
 # - Root seeding where each gene has root_prob chance of being present at the root.
 # -----------------------------------------------------------------------------
 
-library(ape)
-library(phytools)
-library(tidyverse)
+install.packages(ape)
+install.packages(phytools)
+install.packages(tidyverse)
 
 set.seed(123)
 

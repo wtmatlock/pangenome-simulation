@@ -84,7 +84,7 @@ simulate_gene <- function(tree, params) {
   list(states = states)
 }
 
-# -------- Run scenario --------
+# -------- Run simulation --------
 run_simulation <- function(params) {
   pa_mat <- matrix(0, nrow = length(params$tree$tip.label), ncol = params$G,
                    dimnames = list(params$tree$tip.label, paste0("gene", 1:params$G)))
@@ -130,7 +130,7 @@ run_simulation <- function(params) {
 }
 
 # -------- Pangenome fluidity --------
-# Thanks Anna Dewar for the function
+# Thanks Anna Dewar for the function :-)
 
 calc_pangenome_fluidity <- function(pa_mat) {
   
@@ -162,7 +162,7 @@ calc_pangenome_fluidity <- function(pa_mat) {
 # sig2 - variance of the Ornstein-Uhlenbeck trait
 
 # -------- Examples --------
-setwd("~/Desktop/simulate_pangenome")
+setwd("~/Desktop/pangenome-simulation")
 
 ntips <- 100
 tree <- rcoal(ntips)

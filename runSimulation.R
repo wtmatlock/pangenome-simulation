@@ -20,6 +20,10 @@ install.packages(ape)
 install.packages(phytools)
 install.packages(tidyverse)
 
+library(ape)
+library(phytools)
+library(tidyverse)
+
 set.seed(123)
 
 # -------- WF branch propagation --------
